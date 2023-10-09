@@ -54,14 +54,19 @@ func DeleteMsgOrBanChatMember(args *common.HandlerArgs, prevMsg *models.Msg, las
 					}
 				}
 			}
-			//_, err = args.Bot.BanChatMember(args.Ctx, &bot.BanChatMemberParams{
-			//	ChatID: args.Update.Message.Chat.ID,
-			//	UserID: args.Update.Message.From.ID,
-			//})
-			//if err != nil {
-			//	return err
-			//}
+			_, err = args.Bot.BanChatMember(args.Ctx, &bot.BanChatMemberParams{
+				ChatID: args.Update.Message.Chat.ID,
+				UserID: args.Update.Message.From.ID,
+			})
+			if err != nil {
+				if strings.Contains(err.Error(), "Bad Request: USER_NOT_PARTICIPANT") {
+					return nil
+				}
+				return err
+			}
+			msgSlice = clearSlice(msgSlice)
 			counter = 0
+			ReportToMeWithMention(args)
 		}
 	} else {
 		counter = 0
