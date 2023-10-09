@@ -1,14 +1,17 @@
 package main
 
 import (
-	"antispambot/config"
+	"antispambot/bot/common"
+	"antispambot/bot/config"
+	bot "antispambot/bot/methods"
+	"antispambot/bot/reporter"
 	"context"
-	"github.com/go-telegram/bot/models"
+	tgModels "github.com/go-telegram/bot/models"
 	"net/http"
 	"os"
 	"os/signal"
 
-	"github.com/go-telegram/bot"
+	tgBot "github.com/go-telegram/bot"
 )
 
 var conf *config.Config
@@ -17,65 +20,41 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	opts := []bot.Option{
-		bot.WithDefaultHandler(handler),
+	opts := []tgBot.Option{
+		tgBot.WithDefaultHandler(handlerFunc),
 	}
 	conf = config.GetConfig()
 
-	b, err := bot.New(conf.BotToken, opts...)
+	b, err := tgBot.New(conf.BotToken, opts...)
 	if err != nil {
 		panic(err)
 	}
-	b.SetWebhook(ctx, &bot.SetWebhookParams{
-		URL: "https://44f5-136-169-243-85.ngrok.io",
+	b.SetWebhook(ctx, &tgBot.SetWebhookParams{
+		URL: "ngrok",
 	})
 
 	go func() {
 		http.ListenAndServe(":2000", b.WebhookHandler())
 	}()
 
-	// Use StartWebhook instead of Start
 	b.StartWebhook(ctx)
 }
 
-type msg struct {
-	UserID int64
-	ChatID int64
-	Text   string
-}
+func handlerFunc(ctx context.Context, b *tgBot.Bot, update *tgModels.Update) {
+	conf = config.GetConfig()
 
-var msgSlice []msg
-var counter int
-
-func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	args := &common.HandlerArgs{
+		Ctx:    ctx,
+		Bot:    b,
+		Update: update,
+		Conf:   conf,
+	}
 
 	if !update.Message.From.IsBot {
-		sl := msgSlice
-		message := msg{
-			UserID: update.Message.From.ID,
-			ChatID: update.Message.Chat.ID,
-			Text:   update.Message.Text,
-		}
-
-		msgSlice = append(msgSlice, message)
-		sl2 := msgSlice
-		counter++
-
-		if len(sl) != 0 && check(sl, sl2) {
-			b.DeleteMessage(ctx, &bot.DeleteMessageParams{MessageID: update.Message.ID, ChatID: message.ChatID})
-
+		prevMsg, lastMsg := bot.GetPrevAndLastMsg(update)
+		err := bot.DeleteMsgOrBanChatMember(args, prevMsg, lastMsg)
+		if err != nil {
+			reporter.ReportToMe(ctx, b, err.Error(), false)
 		}
 	}
-}
-
-func check(sl []msg, sl2 []msg) bool {
-	msg1 := sl[len(sl)-1]
-	msg2 := sl2[len(sl2)-1]
-	//if &sl[len(sl)-1].ID == &sl2[len(sl2)-1].ID && &sl[len(sl)-1].Text == &sl2[len(sl2)-1].Text {
-	//	return true
-	//}
-	if msg2 == msg1 {
-		return true
-	}
-	return false
 }
