@@ -5,6 +5,7 @@ import (
 	"antispambot/bot/models"
 	"github.com/go-telegram/bot"
 	tgModels "github.com/go-telegram/bot/models"
+	"strings"
 )
 
 var msgSlice []models.Msg
@@ -13,8 +14,9 @@ var counter int
 func GetPrevAndLastMsg(update *tgModels.Update) (prevMsg *models.Msg, lastMsg *models.Msg) {
 	sl1 := msgSlice
 	message := models.Msg{
-		UserID: update.Message.From.ID,
-		Text:   update.Message.Text,
+		UserID:    update.Message.From.ID,
+		MessageID: update.Message.ID,
+		Text:      update.Message.Text,
 	}
 
 	msgSlice = append(msgSlice, message)
@@ -38,6 +40,20 @@ func DeleteMsgOrBanChatMember(args *common.HandlerArgs, prevMsg *models.Msg, las
 		}
 		counter++
 		if counter == 2 {
+			for _, msg := range msgSlice {
+				if msg.UserID == args.Update.Message.From.ID {
+					_, err = args.Bot.DeleteMessage(args.Ctx, &bot.DeleteMessageParams{
+						ChatID:    args.Update.Message.Chat.ID,
+						MessageID: msg.MessageID,
+					})
+					if err != nil {
+						if strings.Contains(err.Error(), "Bad Request: message to delete not found") {
+							continue
+						}
+						return err
+					}
+				}
+			}
 			//_, err = args.Bot.BanChatMember(args.Ctx, &bot.BanChatMemberParams{
 			//	ChatID: args.Update.Message.Chat.ID,
 			//	UserID: args.Update.Message.From.ID,
@@ -58,4 +74,10 @@ func check(prevMsg *models.Msg, lastMsg *models.Msg) bool {
 		return true
 	}
 	return false
+}
+
+func clearSlice(slice []models.Msg) []models.Msg {
+	newSlice := make([]models.Msg, 0)
+	copy(slice, newSlice)
+	return slice[:0]
 }

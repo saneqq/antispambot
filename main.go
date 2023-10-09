@@ -30,7 +30,7 @@ func main() {
 		panic(err)
 	}
 	b.SetWebhook(ctx, &tgBot.SetWebhookParams{
-		URL: "ngrok",
+		URL: "https://ee85-136-169-243-245.ngrok.io",
 	})
 
 	go func() {
@@ -41,6 +41,7 @@ func main() {
 }
 
 func handlerFunc(ctx context.Context, b *tgBot.Bot, update *tgModels.Update) {
+	defer reporter.HandlePanic(ctx, b, update)
 	conf = config.GetConfig()
 
 	args := &common.HandlerArgs{
